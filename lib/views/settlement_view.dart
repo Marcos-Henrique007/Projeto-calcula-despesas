@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../viewmodels/settlement_view_model.dart';
-import '../models/settlement.dart';
 
 import '../widgets/settlement_card.dart';
 import '../widgets/balance_card.dart';
 import '../widgets/category_card.dart';
+import '../widgets/theme_mode_button.dart';
 
 class SettlementView extends StatelessWidget {
   const SettlementView({super.key});
@@ -17,10 +17,10 @@ class SettlementView extends StatelessWidget {
     final viewModel = context.watch<SettlementViewModel>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
 
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF8F9FA),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
 
         title: Column(
@@ -57,6 +57,7 @@ class SettlementView extends StatelessWidget {
         ),
 
         actions: [
+          const ThemeModeButton(),
           IconButton(
             onPressed: () {
               _showMessage(context, 'Histórico sincronizado');
@@ -145,7 +146,7 @@ class SettlementView extends StatelessWidget {
 
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: const Color(0xFFE2E8F0),
@@ -347,7 +348,7 @@ class SettlementView extends StatelessWidget {
       ),
 
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
       ),
 
@@ -367,7 +368,7 @@ class SettlementView extends StatelessWidget {
       padding: const EdgeInsets.all(12),
 
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
+        color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
       ),
 
@@ -507,7 +508,7 @@ class SettlementView extends StatelessWidget {
   Widget _buildBottomNavigation(BuildContext context) {
 
     return BottomAppBar(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       elevation: 8,
       notchMargin: 7,
 

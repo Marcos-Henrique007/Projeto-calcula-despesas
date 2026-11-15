@@ -15,10 +15,10 @@ class CategoryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFE2E8F0),
+          color: Theme.of(context).colorScheme.outlineVariant,
         ),
       ),
       child: Column(
@@ -64,10 +64,10 @@ class CategoryCard extends StatelessWidget {
               return Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: const Color(0xFFF1F5F9),
+                    color: Theme.of(context).colorScheme.outlineVariant,
                   ),
                 ),
                 child: Column(

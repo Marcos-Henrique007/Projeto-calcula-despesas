@@ -24,13 +24,14 @@ class SettlementCard extends StatelessWidget {
     final receives = settlement.to == 'Você';
 
     final green = const Color(0xFF059669);
+    final colors = Theme.of(context).colorScheme;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: colors.outlineVariant),
         boxShadow: const [
           BoxShadow(
             color: Color(0x080F172A),
@@ -81,7 +82,7 @@ class SettlementCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: receives ? green : Colors.black87,
+                  color: receives ? green : colors.onSurface,
                 ),
               ),
             ],
@@ -93,7 +94,7 @@ class SettlementCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
+              color: colors.surfaceContainerLow,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -172,7 +173,7 @@ class SettlementCard extends StatelessWidget {
                 icon: const Icon(Icons.check_circle),
                 label: const Text('Marcar como pago'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F172A),
+                  backgroundColor: const Color(0xFF059669),
                 ),
               ),
             ),
