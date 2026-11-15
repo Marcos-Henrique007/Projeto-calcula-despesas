@@ -1,0 +1,27 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "calcula-despesa-amigos",
+          "appId": "1:62327695577:android:2b362a2f11e9fec3d036c8",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "calcula-despesa-amigos",
+          "configurations": {
+            "android": "1:62327695577:android:2b362a2f11e9fec3d036c8"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,52 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function memberPath(groupId, uid) {
+      return /databases/(default)/documents/groups/$(groupId)/members/$(uid);
+    }
+
+    function isMember(groupId) {
+      return signedIn() && firestore.exists(memberPath(groupId, request.auth.uid));
+    }
+
+    function isAdmin(groupId) {
+      return isMember(groupId)
+        && firestore.get(memberPath(groupId, request.auth.uid)).data.role in ['owner', 'admin'];
+    }
+
+    function expensePath(groupId, expenseId) {
+      return /databases/(default)/documents/groups/$(groupId)/expenses/$(expenseId);
+    }
+
+    function mayUpload(groupId, expenseId) {
+      return isMember(groupId)
+        && (
+          isAdmin(groupId)
+          || !firestore.exists(expensePath(groupId, expenseId))
+          || firestore.get(expensePath(groupId, expenseId)).data.createdBy == request.auth.uid
+        );
+    }
+
+    match /groups/{groupId}/expenses/{expenseId}/{fileName} {
+      allow read: if isMember(groupId)
+        && fileName.matches('^receipt\\.(jpg|jpeg|png|webp|heic)$');
+
+      allow create, update: if mayUpload(groupId, expenseId)
+        && fileName.matches('^receipt\\.(jpg|jpeg|png|webp|heic)$')
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('^image/(jpeg|png|webp|heic)$');
+
+      allow delete: if isMember(groupId)
+        && fileName.matches('^receipt\\.(jpg|jpeg|png|webp|heic)$')
+        && (
+          isAdmin(groupId)
+          || (firestore.exists(expensePath(groupId, expenseId))
+            && firestore.get(expensePath(groupId, expenseId)).data.createdBy == request.auth.uid)
+        );
+    }
+  }
+}

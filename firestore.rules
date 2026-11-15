@@ -1,0 +1,276 @@
+// Assumed schema: users/{uid}/groups/{groupId}, invites/{code}, groups/{groupId}
+// and the groups subcollections members, participants, expenses, settlements, _operations.
+// Group/expense/settlement records use stable IDs, integer revisions, server
+// updatedAt timestamps and UID audit fields. Monetary values are integer cents.
+// See FIRESTORE_SECURITY_REVIEW.md for field details and known limitations.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function memberPath(groupId, uid) {
+      return /databases/$(database)/documents/groups/$(groupId)/members/$(uid);
+    }
+    function isMember(groupId) {
+      return signedIn() && exists(memberPath(groupId, request.auth.uid));
+    }
+    function isAdmin(groupId) {
+      return isMember(groupId)
+        && get(memberPath(groupId, request.auth.uid)).data.role in ['owner', 'admin'];
+    }
+    function validCurrency(value) {
+      return value in ['BRL', 'USD', 'EUR', 'GBP', 'ARS', 'CLP'];
+    }
+    function optionalText(data, field, maxLength) {
+      return !(field in data) || data[field] == null
+        || (data[field] is string && data[field].size() <= maxLength);
+    }
+    function validGroup(data, groupId) {
+      return data.keys().hasOnly([
+          'id', 'name', 'destination', 'description', 'currency', 'types',
+          'inviteCode', 'ownerUid', 'createdBy', 'updatedBy', 'revision',
+          'updatedAt', 'deletedAt', 'startDate', 'endDate'
+        ])
+        && data.keys().hasAll([
+          'id', 'name', 'destination', 'description', 'currency', 'types',
+          'inviteCode', 'ownerUid', 'createdBy', 'updatedBy', 'revision', 'updatedAt'
+        ])
+        && data.id == groupId
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.destination is string && data.destination.size() <= 120
+        && data.description is string && data.description.size() <= 2000
+        && validCurrency(data.currency)
+        && data.types is list && data.types.size() <= 8
+        && data.inviteCode is string && data.inviteCode.matches('^[A-F0-9]{12}$')
+        && data.ownerUid is string && data.ownerUid.size() > 0 && data.ownerUid.size() <= 128
+        && data.createdBy is string && data.createdBy.size() > 0 && data.createdBy.size() <= 128
+        && data.updatedBy == request.auth.uid
+        && data.revision is int && data.revision > 0
+        && data.updatedAt is timestamp && data.updatedAt == request.time
+        && optionalText(data, 'startDate', 40)
+        && optionalText(data, 'endDate', 40)
+        && (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp);
+    }
+    function validParticipant(data, groupId, participantId) {
+      return data.keys().hasOnly([
+          'id', 'groupId', 'name', 'email', 'uid', 'status', 'createdBy',
+          'updatedBy', 'revision', 'joinedAt', 'updatedAt'
+        ])
+        && data.keys().hasAll([
+          'id', 'groupId', 'name', 'status', 'createdBy', 'updatedBy',
+          'revision', 'updatedAt'
+        ])
+        && data.id == participantId && data.groupId == groupId
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && optionalText(data, 'email', 254)
+        && (!('uid' in data) || data.uid == null || (data.uid is string && data.uid.size() <= 128))
+        && data.status in ['active', 'inactive']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.updatedBy == request.auth.uid
+        && data.revision is int && data.revision > 0
+        && data.updatedAt is timestamp && data.updatedAt == request.time
+        && (!('joinedAt' in data) || data.joinedAt is timestamp || data.joinedAt is int);
+    }
+    function validExpense(data, groupId, expenseId) {
+      return data.keys().hasOnly([
+          'id', 'groupId', 'description', 'amountCents', 'originalAmountCents',
+          'currency', 'exchangeRate', 'payerId', 'category', 'divisionMode',
+          'occurredAt', 'notes', 'receiptRemotePath', 'receiptLocalPath',
+          'shares', 'createdBy', 'updatedBy', 'revision', 'updatedAt', 'deletedAt'
+        ])
+        && data.keys().hasAll([
+          'id', 'groupId', 'description', 'amountCents', 'originalAmountCents',
+          'currency', 'exchangeRate', 'payerId', 'category', 'divisionMode',
+          'occurredAt', 'notes', 'shares', 'createdBy', 'updatedBy', 'revision', 'updatedAt'
+        ])
+        && data.id == expenseId && data.groupId == groupId
+        && data.description is string && data.description.size() > 0 && data.description.size() <= 160
+        && data.amountCents is int && data.amountCents > 0 && data.amountCents <= 100000000000
+        && data.originalAmountCents is int && data.originalAmountCents > 0
+        && validCurrency(data.currency)
+        && data.exchangeRate is string && data.exchangeRate.size() > 0 && data.exchangeRate.size() <= 32
+        && data.payerId is string && data.payerId.size() > 0 && data.payerId.size() <= 128
+        && data.category in [
+          'Alimentação', 'Restaurante', 'Transporte', 'Posto de gasolina',
+          'Hospedagem', 'Viagens', 'Passeios', 'Ingressos', 'Compras',
+          'Saúde e farmácia', 'Outros'
+        ]
+        && data.divisionMode in ['equal', 'selected', 'exact', 'percentages', 'weights']
+        && data.occurredAt is int && data.occurredAt >= 0
+        && data.notes is string && data.notes.size() <= 2000
+        && data.shares is map && data.shares.keys().size() > 0 && data.shares.keys().size() <= 100
+        && optionalText(data, 'receiptRemotePath', 500)
+        && (!('receiptLocalPath' in data) || data.receiptLocalPath == null)
+        && data.createdBy is string && data.createdBy.size() > 0 && data.createdBy.size() <= 128
+        && data.updatedBy == request.auth.uid
+        && data.revision is int && data.revision > 0
+        && data.updatedAt is timestamp && data.updatedAt == request.time
+        && (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp);
+    }
+    function validSettlement(data, groupId, settlementId) {
+      return data.keys().hasOnly([
+          'id', 'groupId', 'fromParticipantId', 'toParticipantId', 'amountCents',
+          'status', 'settledAt', 'createdBy', 'updatedBy', 'revision', 'updatedAt'
+        ])
+        && data.keys().hasAll([
+          'id', 'groupId', 'fromParticipantId', 'toParticipantId', 'amountCents',
+          'status', 'settledAt', 'createdBy', 'updatedBy', 'revision', 'updatedAt'
+        ])
+        && data.id == settlementId && data.groupId == groupId
+        && data.fromParticipantId is string && data.fromParticipantId.size() > 0
+        && data.toParticipantId is string && data.toParticipantId.size() > 0
+        && data.fromParticipantId != data.toParticipantId
+        && exists(/databases/$(database)/documents/groups/$(groupId)/participants/$(data.fromParticipantId))
+        && exists(/databases/$(database)/documents/groups/$(groupId)/participants/$(data.toParticipantId))
+        && data.amountCents is int && data.amountCents > 0 && data.amountCents <= 100000000000
+        && data.status == 'settled' && data.settledAt is int
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.updatedBy == request.auth.uid
+        && data.revision is int && data.revision > 0
+        && data.updatedAt is timestamp && data.updatedAt == request.time;
+    }
+
+    match /users/{uid} {
+      allow read, write: if false;
+      match /groups/{groupId} {
+        allow get, list: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['groupId', 'role', 'joinedAt'])
+          && request.resource.data.groupId == groupId
+          && request.resource.data.joinedAt is timestamp
+          && getAfter(memberPath(groupId, uid)).data.uid == uid
+          && request.resource.data.role == getAfter(memberPath(groupId, uid)).data.role;
+        allow delete: if false;
+      }
+    }
+
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && code.matches('^[A-F0-9]{12}$')
+        && request.resource.data.keys().hasOnly(['groupId', 'createdBy', 'createdAt'])
+        && request.resource.data.keys().hasAll(['groupId', 'createdBy', 'createdAt'])
+        && request.resource.data.groupId is string
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && getAfter(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.ownerUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.inviteCode == code;
+      allow update, delete: if false;
+    }
+
+    match /groups/{groupId} {
+      // Authenticated bootstrap reads can only see that a not-yet-created UUID is absent.
+      allow get: if isMember(groupId)
+        || (signedIn() && !exists(/databases/$(database)/documents/groups/$(groupId)));
+      allow list: if isMember(groupId);
+      allow create: if signedIn()
+        && validGroup(request.resource.data, groupId)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.createdBy == request.auth.uid
+        && !exists(/databases/$(database)/documents/groups/$(groupId));
+      allow update: if isAdmin(groupId)
+        && validGroup(request.resource.data, groupId)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.inviteCode == resource.data.inviteCode
+        && request.resource.data.revision == resource.data.revision + 1
+        && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name', 'destination', 'description', 'currency', 'types',
+            'startDate', 'endDate', 'updatedBy', 'updatedAt', 'revision'
+          ])
+          || (request.resource.data.deletedAt == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'deletedAt', 'updatedBy', 'updatedAt', 'revision'
+            ]))
+        );
+      allow delete: if false;
+
+      match /members/{uid} {
+        allow get: if isMember(groupId) || (signedIn() && uid == request.auth.uid);
+        allow list: if isAdmin(groupId);
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['uid', 'role', 'inviteCode', 'joinedAt'])
+          && request.resource.data.keys().hasAll(['uid', 'role', 'joinedAt'])
+          && request.resource.data.uid == uid
+          && request.resource.data.joinedAt == request.time
+          && (
+            (request.resource.data.role == 'owner' && uid == request.auth.uid
+              && getAfter(/databases/$(database)/documents/groups/$(groupId)).data.ownerUid == request.auth.uid)
+            || (request.resource.data.role == 'member' && uid == request.auth.uid
+              && 'inviteCode' in request.resource.data
+              && request.resource.data.inviteCode is string
+              && get(/databases/$(database)/documents/invites/$(request.resource.data.inviteCode)).data.groupId == groupId)
+          );
+        allow update, delete: if isAdmin(groupId)
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.role in ['owner', 'admin', 'member'];
+      }
+
+      match /participants/{participantId} {
+        allow get, list: if isMember(groupId);
+        allow create: if isMember(groupId)
+          && validParticipant(request.resource.data, groupId, participantId)
+          && request.resource.data.createdBy == request.auth.uid
+          && (isAdmin(groupId) || !('uid' in request.resource.data)
+            || request.resource.data.uid == null
+            || request.resource.data.uid == request.auth.uid);
+        allow update: if isAdmin(groupId)
+          && validParticipant(request.resource.data, groupId, participantId)
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.uid == resource.data.uid;
+        allow delete: if isAdmin(groupId);
+      }
+
+      match /expenses/{expenseId} {
+        allow get, list: if isMember(groupId);
+        allow create: if isMember(groupId)
+          && validExpense(request.resource.data, groupId, expenseId)
+          && request.resource.data.createdBy == request.auth.uid;
+        allow update: if isMember(groupId)
+          && (isAdmin(groupId) || request.auth.uid == resource.data.createdBy)
+          && validExpense(request.resource.data, groupId, expenseId)
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.revision == resource.data.revision + 1
+          && (
+            (request.resource.data.deletedAt == request.time
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'deletedAt', 'updatedBy', 'updatedAt', 'revision'
+              ]))
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'description', 'amountCents', 'originalAmountCents', 'currency',
+              'exchangeRate', 'payerId', 'category', 'divisionMode', 'occurredAt',
+              'notes', 'receiptRemotePath', 'shares', 'updatedBy', 'updatedAt', 'revision'
+            ])
+          );
+        allow delete: if false;
+      }
+
+      match /settlements/{settlementId} {
+        allow get, list: if isMember(groupId);
+        allow create: if isMember(groupId)
+          && validSettlement(request.resource.data, groupId, settlementId)
+          && request.resource.data.createdBy == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      match /_operations/{operationId} {
+        allow get: if isMember(groupId)
+          || (signedIn()
+            && !exists(/databases/$(database)/documents/groups/$(groupId)/_operations/$(operationId)));
+        allow list: if isMember(groupId);
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['entityType', 'entityId', 'createdAt'])
+          && request.resource.data.keys().hasAll(['entityType', 'entityId', 'createdAt'])
+          && request.resource.data.entityType in ['group', 'expense', 'participant', 'settlement']
+          && request.resource.data.entityId is string
+          && request.resource.data.entityId.size() <= 128
+          && request.resource.data.createdAt == request.time
+          && (isMember(groupId)
+            || (existsAfter(memberPath(groupId, request.auth.uid))
+              && getAfter(memberPath(groupId, request.auth.uid)).data.uid == request.auth.uid));
+        allow update, delete: if false;
+      }
+    }
+  }
+}
