@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "62327695577",
+    "project_id": "calcula-despesa-amigos",
+    "storage_bucket": "calcula-despesa-amigos.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:62327695577:android:2b362a2f11e9fec3d036c8",
+        "android_client_info": {
+          "package_name": "com.example.projeto_calcula_despesas"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "62327695577-1q86808kvl8l81u2nik9aoen28ce1si2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCUBNeZl70vHu-fGTAnbgtY2UcNyHTlslU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "62327695577-1q86808kvl8l81u2nik9aoen28ce1si2.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
