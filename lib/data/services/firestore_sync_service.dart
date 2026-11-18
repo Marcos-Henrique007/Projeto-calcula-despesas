@@ -27,11 +27,11 @@ class FirestoreSyncService {
     required FirebaseStorage storage,
     required SyncOutboxRepository outbox,
     required AppDatabase database,
-  })  : _firestore = firestore,
-        _auth = auth,
-        _storage = storage,
-        _outbox = outbox,
-        _database = database;
+  }) : _firestore = firestore,
+       _auth = auth,
+       _storage = storage,
+       _outbox = outbox,
+       _database = database;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
@@ -65,10 +65,14 @@ class FirestoreSyncService {
 
   Future<void> joinByInviteCode(String rawCode) async {
     final actorUid = _auth.currentUser?.uid;
-    if (actorUid == null) throw StateError('Entre na sua conta para usar um convite.');
+    if (actorUid == null)
+      throw StateError('Entre na sua conta para usar um convite.');
     final code = rawCode.trim().toUpperCase();
     if (code.isEmpty) throw ArgumentError('Informe o código do grupo.');
-    final inviteSnapshot = await _firestore.collection('invites').doc(code).get();
+    final inviteSnapshot = await _firestore
+        .collection('invites')
+        .doc(code)
+        .get();
     final groupId = inviteSnapshot.data()?['groupId'] as String?;
     if (!inviteSnapshot.exists || groupId == null || groupId.isEmpty) {
       throw StateError('Código de convite inválido ou expirado.');
@@ -109,7 +113,10 @@ class FirestoreSyncService {
       await groupRef.collection('participants').doc(actorUid).set({
         'id': actorUid,
         'groupId': groupId,
-        'name': _auth.currentUser?.displayName ?? _auth.currentUser?.email ?? 'Participante',
+        'name':
+            _auth.currentUser?.displayName ??
+            _auth.currentUser?.email ??
+            'Participante',
         'email': _auth.currentUser?.email,
         'uid': actorUid,
         'status': 'active',
@@ -169,7 +176,11 @@ class FirestoreSyncService {
       for (final expenseDoc in childSnapshots[1].docs) {
         final remotePath = expenseDoc.data()['receiptRemotePath'] as String?;
         if (remotePath == null || remotePath.isEmpty) continue;
-        final localPath = await _downloadReceipt(groupId, expenseDoc.id, remotePath);
+        final localPath = await _downloadReceipt(
+          groupId,
+          expenseDoc.id,
+          remotePath,
+        );
         if (localPath != null) localReceiptPaths[expenseDoc.id] = localPath;
       }
       final db = await _database.database;
@@ -193,29 +204,30 @@ class FirestoreSyncService {
         if (groupPending.isEmpty &&
             (localGroupRows.isEmpty ||
                 (localGroupRows.single['revision']! as int) <= groupRevision)) {
-          await txn.insert(
-            'groups_local',
-            {
-              'id': groupIdRow,
-              'name': groupData['name'] ?? '',
-              'destination': groupData['destination'] ?? '',
-              'description': groupData['description'] ?? '',
-              'currency': groupData['currency'] ?? 'BRL',
-              'types': jsonEncode(groupData['types'] ?? const <String>[]),
-              'invite_code': groupData['inviteCode'] ?? '',
-              'start_date': groupData['startDate'],
-              'end_date': groupData['endDate'],
-              'created_by': groupData['createdBy'] ?? groupData['ownerUid'] ?? '',
-              'revision': groupRevision,
-              'updated_at': _timestampMillis(groupData['updatedAt']),
-              'deleted_at': null,
-            },
-            conflictAlgorithm: sqlite.ConflictAlgorithm.replace,
-          );
+          await txn.insert('groups_local', {
+            'id': groupIdRow,
+            'name': groupData['name'] ?? '',
+            'destination': groupData['destination'] ?? '',
+            'description': groupData['description'] ?? '',
+            'currency': groupData['currency'] ?? 'BRL',
+            'types': jsonEncode(groupData['types'] ?? const <String>[]),
+            'invite_code': groupData['inviteCode'] ?? '',
+            'start_date': groupData['startDate'],
+            'end_date': groupData['endDate'],
+            'created_by': groupData['createdBy'] ?? groupData['ownerUid'] ?? '',
+            'revision': groupRevision,
+            'updated_at': _timestampMillis(groupData['updatedAt']),
+            'deleted_at': null,
+          }, conflictAlgorithm: sqlite.ConflictAlgorithm.replace);
         }
         for (final participantDoc in childSnapshots[0].docs) {
           final data = participantDoc.data();
-          final pending = await _hasPending(txn, groupIdRow, 'participant', participantDoc.id);
+          final pending = await _hasPending(
+            txn,
+            groupIdRow,
+            'participant',
+            participantDoc.id,
+          );
           if (pending) continue;
           await txn.insert('participants', {
             'id': participantDoc.id,
@@ -229,7 +241,12 @@ class FirestoreSyncService {
         }
         for (final expenseDoc in childSnapshots[1].docs) {
           final data = expenseDoc.data();
-          final pending = await _hasPending(txn, groupIdRow, 'expense', expenseDoc.id);
+          final pending = await _hasPending(
+            txn,
+            groupIdRow,
+            'expense',
+            expenseDoc.id,
+          );
           final revision = (data['revision'] as num?)?.toInt() ?? 1;
           final localRows = await txn.query(
             'expenses',
@@ -248,7 +265,8 @@ class FirestoreSyncService {
             'group_id': groupIdRow,
             'description': data['description'] ?? '',
             'amount_cents': data['amountCents'] ?? 0,
-            'original_amount_cents': data['originalAmountCents'] ?? data['amountCents'] ?? 0,
+            'original_amount_cents':
+                data['originalAmountCents'] ?? data['amountCents'] ?? 0,
             'currency': data['currency'] ?? groupData['currency'] ?? 'BRL',
             'exchange_rate': data['exchangeRate']?.toString() ?? '1',
             'payer_id': data['payerId'] ?? '',
@@ -261,10 +279,15 @@ class FirestoreSyncService {
             'receipt_remote_path': data['receiptRemotePath'],
             'revision': revision,
             'updated_at': _timestampMillis(data['updatedAt']),
-            'deleted_at': data['deletedAt'] == null ? null : _timestampMillis(data['deletedAt']),
+            'deleted_at': data['deletedAt'] == null
+                ? null
+                : _timestampMillis(data['deletedAt']),
           }, conflictAlgorithm: sqlite.ConflictAlgorithm.replace);
-          await txn.delete('expense_shares',
-              where: 'expense_id = ?', whereArgs: [expenseDoc.id]);
+          await txn.delete(
+            'expense_shares',
+            where: 'expense_id = ?',
+            whereArgs: [expenseDoc.id],
+          );
           final rawShares = data['shares'];
           if (rawShares is Map) {
             for (final share in rawShares.entries) {
@@ -278,7 +301,12 @@ class FirestoreSyncService {
         }
         for (final settlementDoc in childSnapshots[2].docs) {
           final data = settlementDoc.data();
-          if (await _hasPending(txn, groupIdRow, 'settlement', settlementDoc.id)) {
+          if (await _hasPending(
+            txn,
+            groupIdRow,
+            'settlement',
+            settlementDoc.id,
+          )) {
             continue;
           }
           await txn.insert('settlements', {
@@ -303,10 +331,14 @@ class FirestoreSyncService {
     String remotePath,
   ) async {
     try {
-      final root = Directory(p.join(await sqlite.getDatabasesPath(), 'receipts'));
+      final root = Directory(
+        p.join(await sqlite.getDatabasesPath(), 'receipts'),
+      );
       await root.create(recursive: true);
       final fileName = remotePath.split('/').last;
-      final localFile = File(p.join(root.path, '${groupId}_${expenseId}_$fileName'));
+      final localFile = File(
+        p.join(root.path, '${groupId}_${expenseId}_$fileName'),
+      );
       if (!await localFile.exists()) {
         await _storage.ref(remotePath).writeToFile(localFile);
       }
@@ -341,42 +373,79 @@ class FirestoreSyncService {
 
   Future<String?> _send(SyncOperation operation) async {
     final groupId = operation.groupId;
+
     if (groupId == null || groupId.isEmpty) {
       throw ArgumentError('A operação precisa estar relacionada a um grupo.');
     }
+
     final entity = _entityReference(operation);
     final actorUid = _auth.currentUser?.uid;
+
     final payload = Map<String, Object?>.from(operation.payload);
+
     String? uploadedReceiptPath;
+
     final localReceiptPath = payload.remove('receiptLocalPath') as String?;
+
     if (operation.entityType == 'expense' && localReceiptPath != null) {
       final file = File(localReceiptPath);
+
       if (!await file.exists()) {
-        throw StateError('O comprovante local não está mais disponível para sincronizar.');
+        throw StateError(
+          'O comprovante local não está mais disponível para sincronizar.',
+        );
       }
+
       if (await file.length() >= 10 * 1024 * 1024) {
-        throw StateError('O comprovante excede o limite de 10 MB do Firebase Storage.');
+        throw StateError(
+          'O comprovante excede o limite de 10 MB do Firebase Storage.',
+        );
       }
+
       final extension = localReceiptPath.split('.').last.toLowerCase();
+
       final contentType = switch (extension) {
         'png' => 'image/png',
         'webp' => 'image/webp',
         'heic' => 'image/heic',
         _ => 'image/jpeg',
       };
-      final storageRef = _storage
-          .ref()
-          .child('groups/$groupId/expenses/${operation.entityId}/receipt.$extension');
-      await storageRef.putFile(file, SettableMetadata(contentType: contentType));
+
+      final storageRef = _storage.ref().child(
+        'groups/$groupId/expenses/${operation.entityId}/receipt.$extension',
+      );
+
+      await storageRef.putFile(
+        file,
+        SettableMetadata(contentType: contentType),
+      );
+
       uploadedReceiptPath = storageRef.fullPath;
       payload['receiptRemotePath'] = uploadedReceiptPath;
     }
-    if (actorUid == null) throw StateError('É necessário entrar para sincronizar.');
+
+    if (actorUid == null) {
+      throw StateError('É necessário entrar para sincronizar.');
+    }
+
+    // Completa os identificadores exigidos pelas regras do Firestore.
+    payload['id'] = operation.entityId;
+
+    if (operation.entityType != 'group') {
+      payload['groupId'] = groupId;
+    }
+
+    // Registros novos precisam identificar seu criador.
+    if (operation.operation == 'create') {
+      payload.putIfAbsent('createdBy', () => actorUid);
+    }
+
     final marker = _firestore
         .collection('groups')
         .doc(groupId)
         .collection('_operations')
         .doc(operation.id);
+
     final ownerMembership = _firestore
         .collection('groups')
         .doc(groupId)
@@ -385,43 +454,61 @@ class FirestoreSyncService {
 
     await _firestore.runTransaction((transaction) async {
       final markerSnapshot = await transaction.get(marker);
+
       if (markerSnapshot.exists) {
         final markerData = markerSnapshot.data();
+
         if (markerData?['entityId'] != operation.entityId ||
             markerData?['entityType'] != operation.entityType) {
-          throw StateError('O ID de operação já está associado a outro registro.');
+          throw StateError(
+            'O ID de operação já está associado a outro registro.',
+          );
         }
+
         return;
       }
 
       final entitySnapshot = await transaction.get(entity);
       final remote = entitySnapshot.data();
+
       final remoteRevision = (remote?['revision'] as num?)?.toInt() ?? 0;
+
       if (remoteRevision != operation.baseRevision) {
         throw RemoteSyncConflict(
           Map<String, Object?>.from(remote ?? const <String, Object?>{}),
         );
       }
 
+      // Criação do grupo e configuração do proprietário.
       if (operation.entityType == 'group' && operation.operation == 'create') {
-        if (operation.payload['ownerUid'] != actorUid ||
-            operation.payload['createdBy'] != actorUid) {
-          throw StateError('O criador do grupo deve corresponder ao usuário autenticado.');
+        if (payload['ownerUid'] != actorUid ||
+            payload['createdBy'] != actorUid) {
+          throw StateError(
+            'O criador do grupo deve corresponder ao usuário autenticado.',
+          );
         }
+
         transaction.set(ownerMembership, {
           'uid': actorUid,
           'role': 'owner',
           'joinedAt': FieldValue.serverTimestamp(),
         });
+
         transaction.set(
-          _firestore.collection('users').doc(actorUid).collection('groups').doc(groupId),
+          _firestore
+              .collection('users')
+              .doc(actorUid)
+              .collection('groups')
+              .doc(groupId),
           {
             'groupId': groupId,
             'role': 'owner',
             'joinedAt': FieldValue.serverTimestamp(),
           },
         );
-        final inviteCode = operation.payload['inviteCode'] as String?;
+
+        final inviteCode = payload['inviteCode'] as String?;
+
         if (inviteCode != null && inviteCode.isNotEmpty) {
           transaction.set(_firestore.collection('invites').doc(inviteCode), {
             'groupId': groupId,
@@ -430,6 +517,8 @@ class FirestoreSyncService {
           });
         }
       }
+
+      // Exclusão lógica.
       if (operation.operation == 'delete') {
         transaction.set(entity, {
           'deletedAt': FieldValue.serverTimestamp(),
@@ -438,6 +527,7 @@ class FirestoreSyncService {
           'updatedBy': actorUid,
         }, SetOptions(merge: true));
       } else {
+        // Criação ou atualização.
         transaction.set(entity, {
           ...payload,
           'revision': remoteRevision + 1,
@@ -445,12 +535,15 @@ class FirestoreSyncService {
           'updatedBy': actorUid,
         }, SetOptions(merge: true));
       }
+
+      // Marcador para evitar operações duplicadas.
       transaction.set(marker, {
         'entityType': operation.entityType,
         'entityId': operation.entityId,
         'createdAt': FieldValue.serverTimestamp(),
       });
     });
+
     return uploadedReceiptPath;
   }
 
