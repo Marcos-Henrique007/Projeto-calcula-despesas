@@ -23,7 +23,6 @@ class CategoryCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-
           // Barra de distribuição.
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
@@ -64,10 +63,12 @@ class CategoryCard extends StatelessWidget {
               return Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  color: Theme.of(context)
+                      .colorScheme.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Theme.of(context).colorScheme.outlineVariant,
+                    color: Theme.of(context)
+                        .colorScheme.outlineVariant,
                   ),
                 ),
                 child: Column(
