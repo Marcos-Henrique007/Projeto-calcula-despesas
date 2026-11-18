@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../core/utils/money_input.dart';
 import '../data/services/sync_coordinator.dart';
 import '../domain/models/travel_group.dart';
+import '../domain/models/participant.dart';
 import '../domain/services/financial_calculator.dart';
 import '../viewmodels/groups_view_model.dart';
 import '../viewmodels/session_view_model.dart';
@@ -45,9 +46,9 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
         return false;
       }
       if (_expenseDateRange != null) {
-        final date = DateUtils.dateOnly(DateTime.fromMillisecondsSinceEpoch(
-          expense['occurred_at']! as int,
-        ));
+        final date = DateUtils.dateOnly(
+          DateTime.fromMillisecondsSinceEpoch(expense['occurred_at']! as int),
+        );
         final start = DateUtils.dateOnly(_expenseDateRange!.start);
         final end = DateUtils.dateOnly(_expenseDateRange!.end);
         if (date.isBefore(start) || date.isAfter(end)) return false;
@@ -64,11 +65,20 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              Flexible(child: Text(group.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
-              const SizedBox(width: 7),
-              const Icon(Icons.circle, color: Color(0xFF10B981), size: 7),
-            ]),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    group.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 7),
+                const Icon(Icons.circle, color: Color(0xFF10B981), size: 7),
+              ],
+            ),
             Text(
               group.destination.isEmpty ? 'Resumo do grupo' : group.destination,
               style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
@@ -120,7 +130,9 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                         padding: const EdgeInsets.all(14),
                         child: Text(
                           'Visitante: estes dados são salvos localmente e não são compartilhados.',
-                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
                         ),
                       ),
                     )
@@ -131,7 +143,9 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                         padding: const EdgeInsets.all(14),
                         child: Text(
                           'Este grupo foi criado como visitante e continua somente neste aparelho. Gravações nele não são enviadas à nuvem.',
-                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
                         ),
                       ),
                     ),
@@ -191,135 +205,174 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                             ],
                           ),
                         ),
-                        const Icon(Icons.account_balance_wallet_outlined,
-                            color: Colors.white, size: 38),
+                        const Icon(
+                          Icons.account_balance_wallet_outlined,
+                          color: Colors.white,
+                          size: 38,
+                        ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 18),
                   if (_selectedDestination == 4) ...[
                     Row(
-                    key: _membersKey,
-                    children: [
-                      Expanded(
-                        child: Text('Participantes (${vm.participants.length})',
-                            style: Theme.of(context).textTheme.titleMedium),
-                      ),
-                      TextButton.icon(
-                        onPressed: () => _addParticipant(context, vm),
-                        icon: const Icon(Icons.person_add_alt_1),
-                        label: const Text('Adicionar'),
-                      ),
-                    ],
-                  ),
-                  if (vm.participants.isEmpty)
-                    const Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text('Adicione quem participa deste grupo.'),
-                      ),
-                    )
-                  else
-                    ...vm.participants.map(
-                      (participant) => ListTile(
-                        leading: CircleAvatar(
+                      key: _membersKey,
+                      children: [
+                        Expanded(
                           child: Text(
-                            (participant['name']! as String)
-                                .characters
-                                .first
-                                .toUpperCase(),
+                            'Participantes (${vm.participants.length})',
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
                         ),
-                        title: Text(participant['name']! as String),
-                        subtitle: Text(
-                          participant['email'] as String? ?? 'Participante local',
+                        TextButton.icon(
+                          onPressed: () => _addParticipant(context, vm),
+                          icon: const Icon(Icons.person_add_alt_1),
+                          label: const Text('Adicionar'),
+                        ),
+                      ],
+                    ),
+                    if (vm.participants.isEmpty)
+                      const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text('Adicione quem participa deste grupo.'),
+                        ),
+                      )
+                    else
+                      ...vm.participants.map(
+                        (participant) => ListTile(
+                          leading: CircleAvatar(
+                            child: Text(
+                              participant.name.characters.first.toUpperCase(),
+                            ),
+                          ),
+                          title: Text(participant.name),
+                          subtitle: Text(
+                            participant.email ?? 'Participante local',
+                          ),
                         ),
                       ),
-                    ),
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 12),
                   ],
                   if (_selectedDestination == 0) ...[
-                  Text('Despesas', key: _expensesKey, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      SizedBox(
-                        width: 155,
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _expenseCategoryFilter,
-                          isExpanded: true,
-                          decoration: const InputDecoration(labelText: 'Categoria'),
-                          items: [
-                            'Todas',
-                            ...vm.expenses.map((expense) => expense['category']! as String).toSet(),
-                          ].map((category) => DropdownMenuItem(
-                                value: category,
-                                child: Text(category, overflow: TextOverflow.ellipsis),
-                              )).toList(),
-                          onChanged: (value) => setState(() =>
-                              _expenseCategoryFilter = value ?? 'Todas'),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 155,
-                        child: DropdownButtonFormField<String?>(
-                          initialValue: _expensePayerFilter,
-                          isExpanded: true,
-                          decoration: const InputDecoration(labelText: 'Pagador'),
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('Todos'),
+                    Text(
+                      'Despesas',
+                      key: _expensesKey,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        SizedBox(
+                          width: 155,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _expenseCategoryFilter,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Categoria',
                             ),
-                            ...vm.participants.map((person) => DropdownMenuItem<String?>(
-                                  value: person['id']! as String,
-                                  child: Text(person['name']! as String,
-                                      overflow: TextOverflow.ellipsis),
-                                )),
-                          ],
-                          onChanged: (value) =>
-                              setState(() => _expensePayerFilter = value),
+                            items:
+                                [
+                                      'Todas',
+                                      ...vm.expenses
+                                          .map(
+                                            (expense) =>
+                                                expense['category']! as String,
+                                          )
+                                          .toSet(),
+                                    ]
+                                    .map(
+                                      (category) => DropdownMenuItem(
+                                        value: category,
+                                        child: Text(
+                                          category,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged: (value) => setState(
+                              () => _expenseCategoryFilter = value ?? 'Todas',
+                            ),
+                          ),
                         ),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          final range = await showDateRangePicker(
-                            context: context,
-                            firstDate: DateTime(2000),
-                            lastDate: DateTime.now().add(const Duration(days: 3650)),
-                            initialDateRange: _expenseDateRange,
-                          );
-                          if (range != null) setState(() => _expenseDateRange = range);
-                        },
-                        icon: const Icon(Icons.date_range),
-                        label: Text(_expenseDateRange == null
-                            ? 'Período'
-                            : '${_formatDate(_expenseDateRange!.start)} – ${_formatDate(_expenseDateRange!.end)}'),
-                      ),
-                      if (_expenseDateRange != null)
-                        IconButton(
-                          tooltip: 'Limpar período',
-                          onPressed: () => setState(() => _expenseDateRange = null),
-                          icon: const Icon(Icons.close),
+                        SizedBox(
+                          width: 155,
+                          child: DropdownButtonFormField<String?>(
+                            initialValue: _expensePayerFilter,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Pagador',
+                            ),
+                            items: [
+                              const DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text('Todos'),
+                              ),
+                              ...vm.participants.map(
+                                (person) => DropdownMenuItem<String?>(
+                                  value: person.id,
+                                  child: Text(
+                                    person.name,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _expensePayerFilter = value),
+                          ),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  if (vm.expenses.isEmpty)
-                    const Card(
-                      child: ListTile(
-                        leading: Icon(Icons.receipt_long),
-                        title: Text('Nenhuma despesa cadastrada'),
-                      ),
-                    )
-                  else if (filteredExpenses.isEmpty)
-                    const Card(
-                      child: ListTile(title: Text('Nenhuma despesa corresponde aos filtros.')),
-                    )
-                  else
-                    ...filteredExpenses.map((expense) => Card(
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final range = await showDateRangePicker(
+                              context: context,
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 3650),
+                              ),
+                              initialDateRange: _expenseDateRange,
+                            );
+                            if (range != null)
+                              setState(() => _expenseDateRange = range);
+                          },
+                          icon: const Icon(Icons.date_range),
+                          label: Text(
+                            _expenseDateRange == null
+                                ? 'Período'
+                                : '${_formatDate(_expenseDateRange!.start)} – ${_formatDate(_expenseDateRange!.end)}',
+                          ),
+                        ),
+                        if (_expenseDateRange != null)
+                          IconButton(
+                            tooltip: 'Limpar período',
+                            onPressed: () =>
+                                setState(() => _expenseDateRange = null),
+                            icon: const Icon(Icons.close),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (vm.expenses.isEmpty)
+                      const Card(
+                        child: ListTile(
+                          leading: Icon(Icons.receipt_long),
+                          title: Text('Nenhuma despesa cadastrada'),
+                        ),
+                      )
+                    else if (filteredExpenses.isEmpty)
+                      const Card(
+                        child: ListTile(
+                          title: Text(
+                            'Nenhuma despesa corresponde aos filtros.',
+                          ),
+                        ),
+                      )
+                    else
+                      ...filteredExpenses.map(
+                        (expense) => Card(
                           child: ListTile(
                             leading: const Icon(Icons.receipt_long),
                             title: Text(expense['description']! as String),
@@ -339,29 +392,36 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                                         child: Padding(
                                           padding: const EdgeInsets.all(12),
                                           child: Image.file(
-                                            File(expense['receipt_local_path']! as String),
+                                            File(
+                                              expense['receipt_local_path']!
+                                                  as String,
+                                            ),
                                             fit: BoxFit.contain,
                                           ),
                                         ),
                                       ),
                                     ),
-                                    icon: const Icon(Icons.attachment, size: 18),
+                                    icon: const Icon(
+                                      Icons.attachment,
+                                      size: 18,
+                                    ),
                                   ),
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(formatCents(
-                                      expense['amount_cents']! as int,
-                                      symbol: _symbol(group.currency),
-                                    )),
+                                    Text(
+                                      formatCents(
+                                        expense['amount_cents']! as int,
+                                        symbol: _symbol(group.currency),
+                                      ),
+                                    ),
                                     if (expense['currency'] != group.currency)
                                       Text(
-                                        'Original: ${formatCents(
-                                          expense['original_amount_cents']! as int,
-                                          symbol: _symbol(expense['currency']! as String),
-                                        )}',
-                                        style: Theme.of(context).textTheme.labelSmall,
+                                        'Original: ${formatCents(expense['original_amount_cents']! as int, symbol: _symbol(expense['currency']! as String))}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelSmall,
                                       ),
                                   ],
                                 ),
@@ -376,27 +436,42 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                                       context: context,
                                       builder: (dialogContext) => AlertDialog(
                                         title: const Text('Excluir despesa?'),
-                                        content: Text('Deseja excluir “${expense['description']}”?'),
+                                        content: Text(
+                                          'Deseja excluir “${expense['description']}”?',
+                                        ),
                                         actions: [
                                           TextButton(
-                                            onPressed: () => Navigator.pop(dialogContext, false),
+                                            onPressed: () => Navigator.pop(
+                                              dialogContext,
+                                              false,
+                                            ),
                                             child: const Text('Cancelar'),
                                           ),
                                           FilledButton(
-                                            onPressed: () => Navigator.pop(dialogContext, true),
+                                            onPressed: () => Navigator.pop(
+                                              dialogContext,
+                                              true,
+                                            ),
                                             child: const Text('Excluir'),
                                           ),
                                         ],
                                       ),
                                     );
                                     if (confirmed == true && context.mounted) {
-                                      final deleted = await vm.deleteExpense(expense);
+                                      final deleted = await vm.deleteExpense(
+                                        expense,
+                                      );
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(content: Text(deleted
-                                              ? 'Despesa excluída.'
-                                              : vm.error ?? 'Falha ao excluir despesa.')),
-                                        );
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  deleted
+                                                      ? 'Despesa excluída.'
+                                                      : vm.error ?? 'Falha ao excluir despesa.',
+                                                ),
+                                              ),
+                                            );
                                       }
                                     }
                                   },
@@ -414,39 +489,86 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                               ],
                             ),
                           ),
-                        )),
-                  const SizedBox(height: 16),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
                   ],
                   if (_selectedDestination == 1) ...[
-                    Text('Formas de divisão', style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      'Formas de divisão',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 8),
-                    const Text('Escolha como cada despesa será repartida entre os participantes.'),
+                    const Text(
+                      'Escolha como cada despesa será repartida entre os participantes.',
+                    ),
                     const SizedBox(height: 12),
-                    _divisionModeCard(context, vm, Icons.people_outline, 'Igual entre todos', 'Divide o valor igualmente entre o grupo.', ExpenseDivisionMode.equal),
-                    _divisionModeCard(context, vm, Icons.checklist, 'Participantes selecionados', 'Inclui somente as pessoas que você escolher.', ExpenseDivisionMode.selected),
-                    _divisionModeCard(context, vm, Icons.payments_outlined, 'Valores exatos', 'Informe quanto cabe a cada pessoa.', ExpenseDivisionMode.exact),
-                    _divisionModeCard(context, vm, Icons.percent, 'Por porcentagem', 'Distribui conforme percentuais que somam 100%.', ExpenseDivisionMode.percentages),
-                    _divisionModeCard(context, vm, Icons.pie_chart_outline, 'Por cotas ou pesos', 'Divide proporcionalmente às cotas informadas.', ExpenseDivisionMode.weights),
+                    _divisionModeCard(
+                      context,
+                      vm,
+                      Icons.people_outline,
+                      'Igual entre todos',
+                      'Divide o valor igualmente entre o grupo.',
+                      ExpenseDivisionMode.equal,
+                    ),
+                    _divisionModeCard(
+                      context,
+                      vm,
+                      Icons.checklist,
+                      'Participantes selecionados',
+                      'Inclui somente as pessoas que você escolher.',
+                      ExpenseDivisionMode.selected,
+                    ),
+                    _divisionModeCard(
+                      context,
+                      vm,
+                      Icons.payments_outlined,
+                      'Valores exatos',
+                      'Informe quanto cabe a cada pessoa.',
+                      ExpenseDivisionMode.exact,
+                    ),
+                    _divisionModeCard(
+                      context,
+                      vm,
+                      Icons.percent,
+                      'Por porcentagem',
+                      'Distribui conforme percentuais que somam 100%.',
+                      ExpenseDivisionMode.percentages,
+                    ),
+                    _divisionModeCard(
+                      context,
+                      vm,
+                      Icons.pie_chart_outline,
+                      'Por cotas ou pesos',
+                      'Divide proporcionalmente às cotas informadas.',
+                      ExpenseDivisionMode.weights,
+                    ),
                     const SizedBox(height: 12),
                     FilledButton.icon(
-                      onPressed: vm.isBusy ? null : () => _startExpense(context, vm),
+                      onPressed: vm.isBusy
+                          ? null
+                          : () => _startExpense(context, vm),
                       icon: const Icon(Icons.add),
                       label: const Text('Criar despesa com divisão'),
                     ),
                   ],
                   if (_selectedDestination == 3) ...[
-                  Text('Acerto de contas', key: _settlementsKey,
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  if (vm.transfers.isEmpty)
-                    const Card(
-                      child: ListTile(
-                        leading: Icon(Icons.check_circle_outline),
-                        title: Text('As contas estão equilibradas.'),
-                      ),
-                    )
-                  else
-                    ...vm.transfers.map((transfer) => Card(
+                    Text(
+                      'Acerto de contas',
+                      key: _settlementsKey,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    if (vm.transfers.isEmpty)
+                      const Card(
+                        child: ListTile(
+                          leading: Icon(Icons.check_circle_outline),
+                          title: Text('As contas estão equilibradas.'),
+                        ),
+                      )
+                    else
+                      ...vm.transfers.map(
+                        (transfer) => Card(
                           child: ListTile(
                             leading: const Icon(Icons.swap_horiz),
                             title: Text(
@@ -457,89 +579,137 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                Text(formatCents(
-                                  transfer.cents,
-                                  symbol: _symbol(group.currency),
-                                )),
+                                Text(
+                                  formatCents(
+                                    transfer.cents,
+                                    symbol: _symbol(group.currency),
+                                  ),
+                                ),
                                 TextButton(
-                                  onPressed: vm.isBusy ? null : () async {
-                                    final ok = await vm.recordPayment(
-                                      fromParticipantId: transfer.fromParticipantId,
-                                      toParticipantId: transfer.toParticipantId,
-                                      amountCents: transfer.cents,
-                                    );
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text(ok
-                                            ? 'Pagamento registrado.'
-                                            : vm.error ?? 'Falha ao registrar pagamento.')),
-                                      );
-                                    }
-                                  },
+                                  onPressed: vm.isBusy
+                                      ? null
+                                      : () async {
+                                          final ok = await vm.recordPayment(
+                                            fromParticipantId:
+                                                transfer.fromParticipantId,
+                                            toParticipantId:
+                                                transfer.toParticipantId,
+                                            amountCents: transfer.cents,
+                                          );
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  ok
+                                                      ? 'Pagamento registrado.'
+                                                      : vm.error ?? 'Falha ao registrar pagamento.',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        },
                                   child: const Text('Marcar como pago'),
                                 ),
                               ],
                             ),
                           ),
-                        )),
-                  if (vm.settlements.isNotEmpty) ...[
-                    const SizedBox(height: 18),
-                    Text('Pagamentos registrados', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    ...vm.settlements.map((settlement) => ListTile(
+                        ),
+                      ),
+                    if (vm.settlements.isNotEmpty) ...[
+                      const SizedBox(height: 18),
+                      Text(
+                        'Pagamentos registrados',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      ...vm.settlements.map(
+                        (settlement) => ListTile(
                           leading: const Icon(Icons.check_circle_outline),
-                          title: Text('${_participantName(vm, settlement['from_participant_id']! as String)} pagou ${_participantName(vm, settlement['to_participant_id']! as String)}'),
-                          subtitle: Text(_formatDate(DateTime.fromMillisecondsSinceEpoch(settlement['settled_at']! as int))),
-                          trailing: Text(formatCents(
-                            settlement['amount_cents']! as int,
-                            symbol: _symbol(group.currency),
-                          )),
-                        )),
-                  ],
-                  if (_selectedDestination == 3) ...[
-                    const SizedBox(height: 18),
-                    Text('Saldos individuais', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    ...vm.participants.map((participant) {
-                      final id = participant['id']! as String;
-                      final balance = vm.balanceFor(id);
-                      final positive = balance >= 0;
-                      return Card(
-                        child: ListTile(
-                          leading: CircleAvatar(child: Text((participant['name']! as String).characters.first.toUpperCase())),
-                          title: Text(participant['name']! as String),
-                          subtitle: Text(positive ? 'Recebe no total' : 'Tem a pagar'),
+                          title: Text(
+                            '${_participantName(vm, settlement['from_participant_id']! as String)} pagou ${_participantName(vm, settlement['to_participant_id']! as String)}',
+                          ),
+                          subtitle: Text(
+                            _formatDate(
+                              DateTime.fromMillisecondsSinceEpoch(
+                                settlement['settled_at']! as int,
+                              ),
+                            ),
+                          ),
                           trailing: Text(
-                            '${positive ? '+' : '-'}${formatCents(balance.abs(), symbol: _symbol(group.currency))}',
-                            style: TextStyle(color: positive ? const Color(0xFF059669) : const Color(0xFFDC2626), fontWeight: FontWeight.w700),
+                            formatCents(
+                              settlement['amount_cents']! as int,
+                              symbol: _symbol(group.currency),
+                            ),
                           ),
                         ),
-                      );
-                    }),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: () async {
-                        try {
-                          await vm.shareReport();
-                        } catch (error) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Não foi possível gerar o PDF: $error')),
-                            );
+                      ),
+                    ],
+                    if (_selectedDestination == 3) ...[
+                      const SizedBox(height: 18),
+                      Text(
+                        'Saldos individuais',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      ...vm.participants.map((participant) {
+                        final id = participant.id;
+                        final balance = vm.balanceFor(id);
+                        final positive = balance >= 0;
+                        return Card(
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              child: Text(
+                                participant.name.characters.first.toUpperCase(),
+                              ),
+                            ),
+                            title: Text(participant.name),
+                            subtitle: Text(
+                              positive ? 'Recebe no total' : 'Tem a pagar',
+                            ),
+                            trailing: Text(
+                              '${positive ? '+' : '-'}${formatCents(balance.abs(), symbol: _symbol(group.currency))}',
+                              style: TextStyle(
+                                color: positive
+                                    ? const Color(0xFF059669)
+                                    : const Color(0xFFDC2626),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: () async {
+                          try {
+                            await vm.shareReport();
+                          } catch (error) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Não foi possível gerar o PDF: $error',
+                                  ),
+                                ),
+                              );
+                            }
                           }
-                        }
-                      },
-                      icon: const Icon(Icons.picture_as_pdf),
-                      label: const Text('Exportar fechamento em PDF'),
-                    ),
-                  ],
+                        },
+                        icon: const Icon(Icons.picture_as_pdf),
+                        label: const Text('Exportar fechamento em PDF'),
+                      ),
+                    ],
                   ],
                   if (vm.error != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 12),
                       child: Text(
                         vm.error!,
-                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
                     ),
                 ],
@@ -583,9 +753,24 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 20, color: selected ? const Color(0xFF059669) : const Color(0xFF94A3B8)),
+            Icon(
+              icon,
+              size: 20,
+              color: selected
+                  ? const Color(0xFF059669)
+                  : const Color(0xFF94A3B8),
+            ),
             const SizedBox(height: 2),
-            Text(label, style: TextStyle(fontSize: 10, color: selected ? const Color(0xFF059669) : const Color(0xFF94A3B8), fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: selected
+                    ? const Color(0xFF059669)
+                    : const Color(0xFF94A3B8),
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
           ],
         ),
       ),
@@ -622,7 +807,7 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
 
   String _participantName(GroupDetailsViewModel vm, String id) {
     for (final participant in vm.participants) {
-      if (participant['id'] == id) return participant['name']! as String;
+      if (participant.id == id) return participant.name;
     }
     return 'Participante';
   }
@@ -631,14 +816,14 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
       '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
 
   String _symbol(String currency) => switch (currency) {
-        'BRL' => 'R\$',
-        'USD' => r'\$',
-        'EUR' => '€',
-        'GBP' => '£',
-        'ARS' => r'\$',
-        'CLP' => r'\$',
-        _ => currency,
-      };
+    'BRL' => 'R\$',
+    'USD' => r'\$',
+    'EUR' => '€',
+    'GBP' => '£',
+    'ARS' => r'\$',
+    'CLP' => r'\$',
+    _ => currency,
+  };
 
   Future<void> _editExpense(
     BuildContext context,
@@ -648,7 +833,9 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
     final description = TextEditingController(
       text: expense['description']! as String,
     );
-    final notes = TextEditingController(text: expense['notes'] as String? ?? '');
+    final notes = TextEditingController(
+      text: expense['notes'] as String? ?? '',
+    );
     final formKey = GlobalKey<FormState>();
     const categories = [
       'Alimentação',
@@ -693,10 +880,12 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                       initialValue: category,
                       decoration: const InputDecoration(labelText: 'Categoria'),
                       items: categories
-                          .map((item) => DropdownMenuItem(
-                                value: item,
-                                child: Text(item),
-                              ))
+                          .map(
+                            (item) => DropdownMenuItem(
+                              value: item,
+                              child: Text(item),
+                            ),
+                          )
                           .toList(),
                       onChanged: (value) =>
                           setDialogState(() => category = value ?? category),
@@ -711,16 +900,20 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                           context: dialogContext,
                           initialDate: occurredAt,
                           firstDate: DateTime(2000),
-                          lastDate: DateTime.now().add(const Duration(days: 3650)),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 3650),
+                          ),
                         );
                         if (selected != null) {
-                          setDialogState(() => occurredAt = DateTime(
-                                selected.year,
-                                selected.month,
-                                selected.day,
-                                occurredAt.hour,
-                                occurredAt.minute,
-                              ));
+                          setDialogState(
+                            () => occurredAt = DateTime(
+                              selected.year,
+                              selected.month,
+                              selected.day,
+                              occurredAt.hour,
+                              occurredAt.minute,
+                            ),
+                          );
                         }
                       },
                     ),
@@ -771,9 +964,11 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(ok
-                ? 'Despesa atualizada.'
-                : vm.error ?? 'Falha ao editar a despesa.'),
+            content: Text(
+              ok
+                  ? 'Despesa atualizada.'
+                  : vm.error ?? 'Falha ao editar a despesa.',
+            ),
           ),
         );
       }
@@ -783,7 +978,9 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
   }
 
   Future<void> _addParticipant(
-      BuildContext context, GroupDetailsViewModel vm) async {
+    BuildContext context,
+    GroupDetailsViewModel vm,
+  ) async {
     final name = TextEditingController();
     final email = TextEditingController();
     final key = GlobalKey<FormState>();
@@ -799,25 +996,28 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
               TextFormField(
                 controller: name,
                 decoration: const InputDecoration(labelText: 'Nome'),
-                validator: (value) => value?.trim().isNotEmpty == true
-                    ? null
-                    : 'Informe o nome.',
+                validator: (value) =>
+                    value?.trim().isNotEmpty == true ? null : 'Informe o nome.',
               ),
               TextField(
                 controller: email,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'E-mail (opcional)'),
+                decoration: const InputDecoration(
+                  labelText: 'E-mail (opcional)',
+                ),
               ),
             ],
           ),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancelar')),
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
             onPressed: () {
-              if (key.currentState!.validate()) Navigator.pop(dialogContext, true);
+              if (key.currentState!.validate())
+                Navigator.pop(dialogContext, true);
             },
             child: const Text('Adicionar'),
           ),
@@ -832,10 +1032,17 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
     email.dispose();
   }
 
-  Future<void> _startExpense(BuildContext context, GroupDetailsViewModel vm) async {
+  Future<void> _startExpense(
+    BuildContext context,
+    GroupDetailsViewModel vm,
+  ) async {
     if (vm.participants.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Adicione participantes na aba Membros antes de lançar despesas.')),
+        const SnackBar(
+          content: Text(
+            'Adicione participantes na aba Membros antes de lançar despesas.',
+          ),
+        ),
       );
       return;
     }
@@ -848,11 +1055,13 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
     required Set<String> selectedIds,
     required Map<String, TextEditingController> inputControllers,
   }) {
-    if (totalCents == null || totalCents <= 0) return 'Informe um valor total válido.';
+    if (totalCents == null || totalCents <= 0)
+      return 'Informe um valor total válido.';
     if (mode == ExpenseDivisionMode.selected && selectedIds.isEmpty) {
       return 'Selecione ao menos uma pessoa para dividir.';
     }
-    if (mode == ExpenseDivisionMode.equal || mode == ExpenseDivisionMode.selected) {
+    if (mode == ExpenseDivisionMode.equal ||
+        mode == ExpenseDivisionMode.selected) {
       return null;
     }
 
@@ -899,8 +1108,7 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
     XFile? selectedReceipt;
     final participants = vm.participants;
     final inputControllers = {
-      for (final person in participants)
-        person['id']! as String: TextEditingController(),
+      for (final person in participants) person.id: TextEditingController(),
     };
     const categories = [
       'Alimentação',
@@ -916,7 +1124,7 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
       'Outros',
     ];
     var category = categories.first;
-    var payerId = participants.first['id']! as String;
+    var payerId = participants.first.id;
     var divisionMode = initialDivisionMode;
     final selectedIds = <String>{};
     String? divisionError;
@@ -942,9 +1150,12 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                     ),
                     TextFormField(
                       controller: amount,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(labelText: 'Valor em $expenseCurrency'),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Valor em $expenseCurrency',
+                      ),
                       validator: (value) {
                         final cents = parseBrazilianMoneyToCents(value ?? '');
                         return cents != null && cents > 0
@@ -954,9 +1165,16 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                     ),
                     DropdownButtonFormField<String>(
                       initialValue: expenseCurrency,
-                      decoration: const InputDecoration(labelText: 'Moeda da despesa'),
+                      decoration: const InputDecoration(
+                        labelText: 'Moeda da despesa',
+                      ),
                       items: const ['BRL', 'USD', 'EUR', 'GBP', 'ARS', 'CLP']
-                          .map((code) => DropdownMenuItem(value: code, child: Text(code)))
+                          .map(
+                            (code) => DropdownMenuItem(
+                              value: code,
+                              child: Text(code),
+                            ),
+                          )
                           .toList(),
                       onChanged: (value) => setDialogState(() {
                         expenseCurrency = value ?? widget.group.currency;
@@ -966,9 +1184,12 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                     if (expenseCurrency != widget.group.currency)
                       TextFormField(
                         controller: exchangeRate,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
                         decoration: InputDecoration(
-                          labelText: 'Cotação manual (1 $expenseCurrency em ${widget.group.currency})',
+                          labelText:
+                              'Cotação manual (1 $expenseCurrency em ${widget.group.currency})',
                           helperText: 'Deixe vazio para buscar a cotação atual ou usar a última salva.',
                         ),
                       ),
@@ -983,20 +1204,29 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                           context: dialogContext,
                           initialDate: occurredAt,
                           firstDate: DateTime(2000),
-                          lastDate: DateTime.now().add(const Duration(days: 3650)),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 3650),
+                          ),
                         );
                         if (picked != null) {
-                          setDialogState(() => occurredAt = DateTime(
-                                picked.year, picked.month, picked.day,
-                                occurredAt.hour, occurredAt.minute,
-                              ));
+                          setDialogState(
+                            () => occurredAt = DateTime(
+                              picked.year,
+                              picked.month,
+                              picked.day,
+                              occurredAt.hour,
+                              occurredAt.minute,
+                            ),
+                          );
                         }
                       },
                     ),
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: Text('Comprovante (opcional)',
-                          style: Theme.of(dialogContext).textTheme.labelLarge),
+                      child: Text(
+                        'Comprovante (opcional)',
+                        style: Theme.of(dialogContext).textTheme.labelLarge,
+                      ),
                     ),
                     Wrap(
                       spacing: 8,
@@ -1046,20 +1276,38 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                           ),
                           IconButton.filledTonal(
                             tooltip: 'Remover comprovante',
-                            onPressed: () => setDialogState(() => selectedReceipt = null),
+                            onPressed: () =>
+                                setDialogState(() => selectedReceipt = null),
                             icon: const Icon(Icons.close),
                           ),
                         ],
                       ),
                     DropdownButtonFormField<ExpenseDivisionMode>(
                       initialValue: divisionMode,
-                      decoration: const InputDecoration(labelText: 'Forma de divisão'),
+                      decoration: const InputDecoration(
+                        labelText: 'Forma de divisão',
+                      ),
                       items: const [
-                        DropdownMenuItem(value: ExpenseDivisionMode.equal, child: Text('Igual entre todos')),
-                        DropdownMenuItem(value: ExpenseDivisionMode.selected, child: Text('Entre selecionados')),
-                        DropdownMenuItem(value: ExpenseDivisionMode.exact, child: Text('Valores exatos')),
-                        DropdownMenuItem(value: ExpenseDivisionMode.percentages, child: Text('Por porcentagem')),
-                        DropdownMenuItem(value: ExpenseDivisionMode.weights, child: Text('Por cotas/pesos')),
+                        DropdownMenuItem(
+                          value: ExpenseDivisionMode.equal,
+                          child: Text('Igual entre todos'),
+                        ),
+                        DropdownMenuItem(
+                          value: ExpenseDivisionMode.selected,
+                          child: Text('Entre selecionados'),
+                        ),
+                        DropdownMenuItem(
+                          value: ExpenseDivisionMode.exact,
+                          child: Text('Valores exatos'),
+                        ),
+                        DropdownMenuItem(
+                          value: ExpenseDivisionMode.percentages,
+                          child: Text('Por porcentagem'),
+                        ),
+                        DropdownMenuItem(
+                          value: ExpenseDivisionMode.weights,
+                          child: Text('Por cotas/pesos'),
+                        ),
                       ],
                       onChanged: (value) => setDialogState(() {
                         divisionMode = value ?? ExpenseDivisionMode.equal;
@@ -1075,10 +1323,10 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                         ),
                       ),
                       ...participants.map((person) {
-                        final id = person['id']! as String;
+                        final id = person.id;
                         return CheckboxListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: Text(person['name']! as String),
+                          title: Text(person.name),
                           value: selectedIds.contains(id),
                           onChanged: (checked) => setDialogState(() {
                             if (checked == true) {
@@ -1091,7 +1339,12 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                         );
                       }),
                       if (divisionError != null)
-                        Text(divisionError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                        Text(
+                          divisionError!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
                     ],
                     if (divisionMode == ExpenseDivisionMode.exact ||
                         divisionMode == ExpenseDivisionMode.percentages ||
@@ -1104,7 +1357,7 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                         ),
                       ),
                       ...participants.map((person) {
-                        final id = person['id']! as String;
+                        final id = person.id;
                         final hint = switch (divisionMode) {
                           ExpenseDivisionMode.exact => 'Valor',
                           ExpenseDivisionMode.percentages => 'Percentual',
@@ -1116,33 +1369,48 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                           child: TextFormField(
                             controller: inputControllers[id],
                             keyboardType: TextInputType.numberWithOptions(
-                              decimal: divisionMode != ExpenseDivisionMode.weights,
+                              decimal:
+                                  divisionMode != ExpenseDivisionMode.weights,
                             ),
                             decoration: InputDecoration(
-                              labelText: '${person['name']} · $hint${divisionMode == ExpenseDivisionMode.exact ? ' ($expenseCurrency)' : ''}',
+                              labelText:
+                                  '${person.name} · $hint${divisionMode == ExpenseDivisionMode.exact ? ' ($expenseCurrency)' : ''}',
                             ),
-                            validator: (value) => _parseDivisionInput(
-                                      divisionMode, value ?? '',
-                                    ) != null
+                            validator: (value) =>
+                                _parseDivisionInput(
+                                      divisionMode,
+                                      value ?? '',
+                                    ) !=
+                                    null
                                 ? null
                                 : 'Informe um $hint válido ou zero.',
                           ),
                         );
                       }),
                     ],
-                    if (divisionError != null && divisionMode != ExpenseDivisionMode.selected)
+                    if (divisionError != null &&
+                        divisionMode != ExpenseDivisionMode.selected)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
-                        child: Text(divisionError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                        child: Text(
+                          divisionError!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
                       ),
                     DropdownButtonFormField<String>(
                       initialValue: payerId,
-                      decoration: const InputDecoration(labelText: 'Quem pagou?'),
+                      decoration: const InputDecoration(
+                        labelText: 'Quem pagou?',
+                      ),
                       items: participants
-                          .map((person) => DropdownMenuItem(
-                                value: person['id']! as String,
-                                child: Text(person['name']! as String),
-                              ))
+                          .map(
+                            (person) => DropdownMenuItem(
+                              value: person.id,
+                              child: Text(person.name),
+                            ),
+                          )
                           .toList(),
                       onChanged: (value) =>
                           setDialogState(() => payerId = value ?? payerId),
@@ -1151,10 +1419,12 @@ class _GroupDetailsViewState extends State<GroupDetailsView> {
                       initialValue: category,
                       decoration: const InputDecoration(labelText: 'Categoria'),
                       items: categories
-                          .map((item) => DropdownMenuItem(
-                                value: item,
-                                child: Text(item),
-                              ))
+                          .map(
+                            (item) => DropdownMenuItem(
+                              value: item,
+                              child: Text(item),
+                            ),
+                          )
                           .toList(),
                       onChanged: (value) =>
                           setDialogState(() => category = value ?? category),

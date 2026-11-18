@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/settlement.dart';
 import '../models/member_balance.dart';
-import '../models/expense_category.dart';
+import '../models/expense.dart';
 
 class SettlementViewModel extends ChangeNotifier {
 

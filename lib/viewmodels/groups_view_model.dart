@@ -10,6 +10,7 @@ import '../data/services/group_report_service.dart';
 import '../data/services/exchange_rate_service.dart';
 import '../domain/models/travel_group.dart';
 import '../domain/services/financial_calculator.dart';
+import '../domain/models/participant.dart';
 
 class GroupsViewModel extends ChangeNotifier {
   GroupsViewModel({
@@ -17,10 +18,10 @@ class GroupsViewModel extends ChangeNotifier {
     required String actorId,
     required bool syncEnabled,
     required Future<void> Function() syncNow,
-  })  : _repository = repository,
-        _actorId = actorId,
-        _syncEnabled = syncEnabled,
-        _syncNow = syncNow;
+  }) : _repository = repository,
+       _actorId = actorId,
+       _syncEnabled = syncEnabled,
+       _syncNow = syncNow;
 
   final GroupRepository _repository;
   final String _actorId;
@@ -97,8 +98,8 @@ class GroupsViewModel extends ChangeNotifier {
       _error = error is ArgumentError
           ? error.message.toString()
           : error is StateError
-              ? error.message.toString()
-              : 'Falha ao editar o grupo.';
+          ? error.message.toString()
+          : 'Falha ao editar o grupo.';
       return false;
     } finally {
       _isBusy = false;
@@ -125,7 +126,9 @@ class GroupsViewModel extends ChangeNotifier {
       if (_syncEnabled) await _syncNow();
       return true;
     } catch (error) {
-      _error = error is StateError ? error.message.toString() : 'Falha ao excluir o grupo.';
+      _error = error is StateError
+          ? error.message.toString()
+          : 'Falha ao excluir o grupo.';
       return false;
     } finally {
       _isBusy = false;
@@ -161,7 +164,9 @@ class GroupsViewModel extends ChangeNotifier {
       if (_syncEnabled) await _syncNow();
       return true;
     } catch (error) {
-      _error = error is ArgumentError ? error.message.toString() : 'Falha ao criar o grupo.';
+      _error = error is ArgumentError
+          ? error.message.toString()
+          : 'Falha ao criar o grupo.';
       return false;
     } finally {
       _isBusy = false;
@@ -183,16 +188,16 @@ class GroupDetailsViewModel extends ChangeNotifier {
     required String actorId,
     required bool syncEnabled,
     required Future<void> Function() syncNow,
-  })  : _groupRepository = groupRepository,
-        _expenseRepository = expenseRepository,
-        _receiptStorage = receiptStorage,
-        _reportService = reportService,
-        _exchangeRateService = exchangeRateService,
-        _connectivity = connectivity,
-        _calculator = calculator,
-        _actorId = actorId,
-        _syncEnabled = syncEnabled,
-        _syncNow = syncNow;
+  }) : _groupRepository = groupRepository,
+       _expenseRepository = expenseRepository,
+       _receiptStorage = receiptStorage,
+       _reportService = reportService,
+       _exchangeRateService = exchangeRateService,
+       _connectivity = connectivity,
+       _calculator = calculator,
+       _actorId = actorId,
+       _syncEnabled = syncEnabled,
+       _syncNow = syncNow;
 
   final GroupRepository _groupRepository;
   final ExpenseRepository _expenseRepository;
@@ -206,7 +211,7 @@ class GroupDetailsViewModel extends ChangeNotifier {
   final bool _syncEnabled;
   final Future<void> Function() _syncNow;
 
-  List<Map<String, Object?>> _participants = const [];
+  List<Participant> _participants = const [];
   List<Map<String, Object?>> _expenses = const [];
   List<Map<String, Object?>> _settlements = const [];
   List<DebtTransfer> _transfers = const [];
@@ -217,7 +222,7 @@ class GroupDetailsViewModel extends ChangeNotifier {
   bool _isBusy = false;
   String? _error;
 
-  List<Map<String, Object?>> get participants => _participants;
+  List<Participant> get participants => _participants;
   List<Map<String, Object?>> get expenses => _expenses;
   List<Map<String, Object?>> get settlements => _settlements;
   List<DebtTransfer> get transfers => _transfers;
@@ -233,7 +238,9 @@ class GroupDetailsViewModel extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      _participants = await _groupRepository.participants(group.id);
+      _participants = (await _groupRepository.participants(group.id))
+          .map((row) => Participant.fromRow(row))
+          .toList();
       _expenses = await _groupRepository.expenses(group.id);
       final ledgerRows = await _groupRepository.expenseLedger(group.id);
       final paid = <String, int>{};
@@ -243,19 +250,22 @@ class GroupDetailsViewModel extends ChangeNotifier {
         final expenseId = row['expense_id']! as String;
         if (countedExpenses.add(expenseId)) {
           final payerId = row['payer_id']! as String;
-          paid[payerId] =
-              (paid[payerId] ?? 0) + (row['amount_cents']! as int);
+          paid[payerId] = (paid[payerId] ?? 0) + (row['amount_cents']! as int);
         }
         final participantId = row['participant_id'] as String?;
         final shareCents = row['share_cents'] as int?;
         if (participantId != null && shareCents != null) {
-          shares.add(ExpenseShare(participantId: participantId, cents: shareCents));
+          shares.add(
+            ExpenseShare(participantId: participantId, cents: shareCents),
+          );
         }
       }
-      _balances = Map<String, int>.from(_calculator.calculateBalances(
-        paidCentsByParticipant: paid,
-        shares: shares,
-      ));
+      _balances = Map<String, int>.from(
+        _calculator.calculateBalances(
+          paidCentsByParticipant: paid,
+          shares: shares,
+        ),
+      );
       _settlements = await _groupRepository.settlements(group.id);
       for (final settlement in _settlements) {
         final from = settlement['from_participant_id']! as String;
@@ -287,11 +297,15 @@ class GroupDetailsViewModel extends ChangeNotifier {
         actorUid: _actorId,
         syncEnabled: _syncEnabled,
       );
-      _participants = await _groupRepository.participants(group.id);
+      _participants = (await _groupRepository.participants(group.id))
+          .map((row) => Participant.fromRow(row))
+          .toList();
       if (_syncEnabled) await _syncNow();
       return true;
     } catch (error) {
-      _error = error is ArgumentError ? error.message.toString() : 'Falha ao adicionar participante.';
+      _error = error is ArgumentError
+          ? error.message.toString()
+          : 'Falha ao adicionar participante.';
       return false;
     } finally {
       _isBusy = false;
@@ -328,8 +342,8 @@ class GroupDetailsViewModel extends ChangeNotifier {
       _error = error is ArgumentError
           ? error.message.toString()
           : error is StateError
-              ? error.message.toString()
-              : 'Falha ao editar a despesa.';
+          ? error.message.toString()
+          : 'Falha ao editar a despesa.';
       return false;
     } finally {
       _isBusy = false;
@@ -353,7 +367,9 @@ class GroupDetailsViewModel extends ChangeNotifier {
       if (_syncEnabled) await _syncNow();
       return true;
     } catch (error) {
-      _error = error is StateError ? error.message.toString() : 'Falha ao excluir a despesa.';
+      _error = error is StateError
+          ? error.message.toString()
+          : 'Falha ao excluir a despesa.';
       return false;
     } finally {
       _isBusy = false;
@@ -362,14 +378,16 @@ class GroupDetailsViewModel extends ChangeNotifier {
   }
 
   Future<void> shareReport() => _reportService.shareReport(
-        groupName: group.name,
-        currency: group.currency,
-        totalCents: _totalCents,
-        expenses: _expenses,
-        participants: _participants,
-        balances: _balances,
-        settlements: _settlements,
-      );
+    groupName: group.name,
+    currency: group.currency,
+    totalCents: _totalCents,
+    expenses: _expenses,
+    participants: _participants
+        .map((participant) => participant.toRow())
+        .toList(growable: false),
+    balances: _balances,
+    settlements: _settlements,
+  );
 
   Future<bool> recordPayment({
     required String fromParticipantId,
@@ -392,7 +410,9 @@ class GroupDetailsViewModel extends ChangeNotifier {
       if (_syncEnabled) await _syncNow();
       return true;
     } catch (error) {
-      _error = error is ArgumentError ? error.message.toString() : 'Falha ao registrar o acerto.';
+      _error = error is ArgumentError
+          ? error.message.toString()
+          : 'Falha ao registrar o acerto.';
       return false;
     } finally {
       _isBusy = false;
@@ -434,29 +454,42 @@ class GroupDetailsViewModel extends ChangeNotifier {
             : manualExchangeRate?.trim(),
       );
       final convertedTotalCents = rate.convertCents(amountCents);
-      final allIds =
-          _participants.map((participant) => participant['id']! as String).toList();
+      final allIds = _participants
+          .map((participant) => participant.id)
+          .toList(growable: false);
       final values = customValues ?? const <String, int>{};
       final sourceShares = switch (divisionMode) {
-        ExpenseDivisionMode.equal =>
-          _calculator.splitEqually(amountCents, allIds),
+        ExpenseDivisionMode.equal => _calculator.splitEqually(
+          amountCents,
+          allIds,
+        ),
         ExpenseDivisionMode.selected => _calculator.splitEqually(
-            amountCents,
-            selectedParticipantIds ?? const <String>[],
-          ),
-        ExpenseDivisionMode.exact => _calculator.splitExact(amountCents, values),
-        ExpenseDivisionMode.percentages =>
-          _calculator.splitByBasisPoints(amountCents, values),
-        ExpenseDivisionMode.weights =>
-          _calculator.splitByWeights(amountCents, values),
+          amountCents,
+          selectedParticipantIds ?? const <String>[],
+        ),
+        ExpenseDivisionMode.exact => _calculator.splitExact(
+          amountCents,
+          values,
+        ),
+        ExpenseDivisionMode.percentages => _calculator.splitByBasisPoints(
+          amountCents,
+          values,
+        ),
+        ExpenseDivisionMode.weights => _calculator.splitByWeights(
+          amountCents,
+          values,
+        ),
       };
       final convertedShares = sourceShares
-          .map((share) => ExpenseShare(
-                participantId: share.participantId,
-                cents: rate.convertCents(share.cents),
-              ))
+          .map(
+            (share) => ExpenseShare(
+              participantId: share.participantId,
+              cents: rate.convertCents(share.cents),
+            ),
+          )
           .toList();
-      final remainder = convertedTotalCents -
+      final remainder =
+          convertedTotalCents -
           convertedShares.fold<int>(0, (sum, share) => sum + share.cents);
       if (convertedShares.isNotEmpty && remainder != 0) {
         var largestIndex = 0;
@@ -508,8 +541,8 @@ class GroupDetailsViewModel extends ChangeNotifier {
       _error = error is ArgumentError
           ? error.message.toString()
           : error is StateError
-              ? error.message.toString()
-              : 'Falha ao salvar a despesa.';
+          ? error.message.toString()
+          : 'Falha ao salvar a despesa.';
       return false;
     } finally {
       if (receiptToCleanUp != null) {

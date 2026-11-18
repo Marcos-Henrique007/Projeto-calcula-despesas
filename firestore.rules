@@ -17,6 +17,10 @@ service cloud.firestore {
       return isMember(groupId)
         && get(memberPath(groupId, request.auth.uid)).data.role in ['owner', 'admin'];
     }
+    function isGroupOwner(groupId) {
+      return isMember(groupId)
+        && get(memberPath(groupId, request.auth.uid)).data.role == 'owner';
+    }
     function validCurrency(value) {
       return value in ['BRL', 'USD', 'EUR', 'GBP', 'ARS', 'CLP'];
     }
@@ -202,9 +206,15 @@ service cloud.firestore {
               && request.resource.data.inviteCode is string
               && get(/databases/$(database)/documents/invites/$(request.resource.data.inviteCode)).data.groupId == groupId)
           );
-        allow update, delete: if isAdmin(groupId)
+        // Only the owner may grant or revoke admin, and ownership cannot move.
+        allow update: if isGroupOwner(groupId)
+          && resource.data.role != 'owner'
+          && request.resource.data.keys().hasOnly(['uid', 'role', 'inviteCode', 'joinedAt'])
+          && request.resource.data.keys().hasAll(['uid', 'role', 'joinedAt'])
           && request.resource.data.uid == resource.data.uid
-          && request.resource.data.role in ['owner', 'admin', 'member'];
+          && request.resource.data.role in ['admin', 'member']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']);
+        allow delete: if isGroupOwner(groupId) && resource.data.role != 'owner';
       }
 
       match /participants/{participantId} {
